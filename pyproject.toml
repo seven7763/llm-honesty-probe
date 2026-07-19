@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-honesty-probe"
+version = "0.1.0"
+description = "Heuristic signals about whether an OpenAI-/Anthropic-compatible endpoint serves the model it claims. Signals, not proof."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+keywords = [
+    "llm", "openai", "anthropic", "api", "gateway", "proxy", "relay",
+    "tokenizer", "benchmark", "verification", "model-integrity", "downgrade",
+]
+authors = [{ name = "llm-honesty-probe contributors" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+]
+# No runtime dependencies on purpose: pure standard library.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/seven7763/llm-honesty-probe"
+Source = "https://github.com/seven7763/llm-honesty-probe"
+Issues = "https://github.com/seven7763/llm-honesty-probe/issues"
+
+[project.optional-dependencies]
+# Only needed to (re)generate the tokenizer reference table; never at runtime.
+reference = ["tiktoken>=0.5"]
+
+[project.scripts]
+llm-honesty-probe = "llm_honesty_probe.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["llm_honesty_probe*"]
+
+[tool.setuptools.package-data]
+llm_honesty_probe = ["data/*.json"]

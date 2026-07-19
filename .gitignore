@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling / OS
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+
+# Never commit secrets or captured reports
+*.env
+.env
+report.json

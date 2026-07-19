@@ -1,0 +1,7 @@
+{
+  "_comment": "Optional config passed via --config. All keys are optional.",
+  "_comment_degrade": "degrade=true only affects --self-test: it makes the built-in mock behave like a downgraded relay so you can see what a flagged run looks like.",
+  "degrade": false,
+  "_comment_needle": "You can also override needle lengths here instead of --needle-lengths (approx characters).",
+  "needle_lengths": [2000, 8000, 24000]
+}
