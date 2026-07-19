@@ -19,7 +19,11 @@ from .client import Endpoint
 from . import probes as probes_pkg
 from .probes import ProbeContext
 from . import report
+from . import card as card_mod
 from . import families
+
+_CARD_TEXT_FORMATS = ("txt", "md", "svg", "html")
+_CARD_FORMATS = _CARD_TEXT_FORMATS + ("png", "all")
 
 
 def _default_key_env(protocol: str) -> str:
@@ -79,6 +83,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--list-probes", action="store_true", help="List probes and exit")
     p.add_argument("--self-test", action="store_true",
                    help="Run against a built-in mock endpoint (no credentials needed)")
+    # Verdict card: a share-friendly PASS / SUSPICIOUS summary of the run.
+    p.add_argument("--card", action="store_true",
+                   help="Render a share-friendly verdict card instead of the full report")
+    p.add_argument("--card-format", choices=list(_CARD_FORMATS), default="txt",
+                   help="Card format: txt (default), md, svg, html, png, or 'all' "
+                        "(writes every format; requires --card-out as a directory)")
+    p.add_argument("--card-out", default=None,
+                   help="Write the card here (a file, or a directory when --card-format=all). "
+                        "Text/md/svg/html print to stdout if omitted; png requires this.")
+    p.add_argument("--card-show-endpoint", action="store_true",
+                   help="Include the tested endpoint host on the card (masked by default so "
+                        "a shared card doesn't out the provider you tested)")
     return p
 
 
@@ -144,20 +160,17 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # Self-test mode: stand up the mock and point everything at it.
     if args.self_test:
-        from ._mockserver import running_server
-        os.environ.setdefault("LLM_PROBE_SELFTEST_KEY", "sk-selftest-not-a-real-key")
-        with running_server(degrade=bool(user_config.get("degrade"))) as base_url:
-            ctx = ProbeContext(
-                claimed_model=args.claimed_model or "gpt-4o",
-                repeats=args.repeats, max_tokens=args.max_tokens,
-                tokenizer_reference=reference, needle_lengths=needle_lengths,
-                config=user_config)
-            probe_names = _select_probes(args.probes)
-            signals = _run(base_url, "openai", "sk-selftest-not-a-real-key",
-                           ctx.claimed_model, probe_names, ctx, args.timeout)
-            meta = _meta(base_url, "openai", ctx.claimed_model, None, None, None,
-                         "self-test (mock endpoint)", probe_names)
-            _emit(signals, meta, args)
+        # With --card we generate two sample cards: an honest run (PASS) and a
+        # deliberately degraded run (SUSPICIOUS), so people can see both states.
+        if args.card:
+            honest_sigs, honest_meta = _run_selftest(False, args, reference, needle_lengths)
+            degraded_sigs, degraded_meta = _run_selftest(True, args, reference, needle_lengths)
+            _emit_cards([("honest", honest_sigs, honest_meta),
+                         ("degraded", degraded_sigs, degraded_meta)], args)
+            return 0
+        signals, meta = _run_selftest(bool(user_config.get("degrade")), args,
+                                      reference, needle_lengths)
+        _emit(signals, meta, args)
         return 0
 
     # Normal mode requires a target.
@@ -189,8 +202,29 @@ def main(argv: Optional[List[str]] = None) -> int:
                    probe_names, ctx, args.timeout)
     meta = _meta(args.base_url, args.protocol, args.claimed_model,
                  args.compare_base_url, args.compare_protocol, compare_model, mode, probe_names)
-    _emit(signals, meta, args)
+    if args.card:
+        _emit_cards([("card", signals, meta)], args)
+    else:
+        _emit(signals, meta, args)
     return 0
+
+
+def _run_selftest(degrade, args, reference, needle_lengths):
+    """Run the probe suite against the built-in mock and return (signals, meta)."""
+    from ._mockserver import running_server
+    key = "sk-selftest-not-a-real-key"
+    os.environ.setdefault("LLM_PROBE_SELFTEST_KEY", key)
+    with running_server(degrade=degrade) as base_url:
+        ctx = ProbeContext(
+            claimed_model=args.claimed_model or "gpt-4o",
+            repeats=args.repeats, max_tokens=args.max_tokens,
+            tokenizer_reference=reference, needle_lengths=needle_lengths,
+            config={"degrade": degrade})
+        probe_names = _select_probes(args.probes)
+        signals = _run(base_url, "openai", key, ctx.claimed_model, probe_names, ctx, args.timeout)
+        mode = "self-test (mock endpoint, %s)" % ("degraded" if degrade else "honest")
+        meta = _meta(base_url, "openai", ctx.claimed_model, None, None, None, mode, probe_names)
+    return signals, meta
 
 
 def _meta(base_url, protocol, claimed_model, cmp_url, cmp_protocol, cmp_model, mode, probe_names):
@@ -212,6 +246,71 @@ def _emit(signals, meta, args) -> None:
             fh.write(text + "\n")
     else:
         print(text)
+
+
+def _write_png(card, path) -> str:
+    """Write a PNG for *card* to *path*; fall back to an SVG if no rasterizer."""
+    svg = card_mod.render_svg(card)
+    ok, note = card_mod.to_png(svg, path)
+    if ok:
+        sys.stderr.write("wrote %s (%s)\n" % (path, note))
+        return path
+    alt = os.path.splitext(path)[0] + ".svg"
+    with open(alt, "w", encoding="utf-8") as fh:
+        fh.write(svg)
+    sys.stderr.write("note: %s -> wrote %s instead\n" % (note, alt))
+    return alt
+
+
+def _write_card(card, fmt, path) -> None:
+    if fmt == "png":
+        _write_png(card, path)
+        return
+    text = card_mod.render(card, fmt)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text if text.endswith("\n") else text + "\n")
+    sys.stderr.write("wrote %s\n" % path)
+
+
+def _emit_cards(entries, args) -> None:
+    """Render one or more verdict cards. *entries* is a list of (name, signals, meta)."""
+    fmt = args.card_format
+    cards = [(name, card_mod.build_card(sigs, meta, show_endpoint=args.card_show_endpoint))
+             for name, sigs, meta in entries]
+
+    if fmt == "all":
+        if not args.card_out:
+            raise SystemExit("error: --card-format all requires --card-out <directory>")
+        os.makedirs(args.card_out, exist_ok=True)
+        count = 0
+        for name, card in cards:
+            for f in _CARD_TEXT_FORMATS:
+                _write_card(card, f, os.path.join(args.card_out, "%s.%s" % (name, f)))
+                count += 1
+            _write_png(card, os.path.join(args.card_out, "%s.png" % name))
+            count += 1
+        sys.stderr.write("done: %d card file(s) in %s\n" % (count, args.card_out))
+        return
+
+    if args.card_out:
+        if len(cards) > 1:
+            base, ext = os.path.splitext(args.card_out)
+            ext = ext or ("." + fmt)
+            for name, card in cards:
+                _write_card(card, fmt, "%s-%s%s" % (base, name, ext))
+        else:
+            _write_card(cards[0][1], fmt, args.card_out)
+        return
+
+    # stdout (text formats only).
+    if fmt == "png":
+        raise SystemExit("error: --card-format png needs --card-out <file.png>")
+    chunks = []
+    for name, card in cards:
+        if len(cards) > 1:
+            chunks.append("===== %s =====" % name)
+        chunks.append(card_mod.render(card, fmt))
+    print("\n\n".join(chunks))
 
 
 if __name__ == "__main__":

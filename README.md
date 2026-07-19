@@ -24,6 +24,39 @@ claims — or quietly downgrading you.**
 
 ---
 
+## The 30-second check: is the relay you pay for downgrading you?
+
+You pay for `gpt-4o` / `claude-sonnet-4` / `deepseek-chat`. Are you *getting* it, or
+a quantized, context-truncated, or swapped-out substitute? One command turns a run
+into a shareable **verdict card** — a `PASS` / `SUSPICIOUS` snapshot of four
+behavioral signals, safe to screenshot and post:
+
+```bash
+# See both a clean PASS and a downgraded SUSPICIOUS card — no key, no signup:
+python3 -m llm_honesty_probe --self-test --card
+
+# Then point it at the endpoint YOU pay for and share the verdict:
+python3 -m llm_honesty_probe \
+  --base-url https://your-endpoint/v1 --claimed-model gpt-4o --card
+```
+
+| PASS — a clean run | SUSPICIOUS — a downgraded run |
+|:---:|:---:|
+| ![Verdict card showing PASS](examples/cards/pass.png) | ![Verdict card showing SUSPICIOUS](examples/cards/suspicious.png) |
+
+- **Formats for wherever you post it:** `--card-format txt \| md \| svg \| html \| png`
+  (default `txt`; `md` pastes straight into a forum, `svg`/`png`/`html` are for
+  screenshots and social). Write a file with `--card-out card.png`, or dump every
+  format at once with `--card-format all --card-out ./cards`.
+- **It won't out your provider.** The endpoint host is **masked by default**, so a
+  shared card stays about *"an endpoint I pay for"* — not a public accusation. Add
+  `--card-show-endpoint` only if you want the host on the card.
+- **Same key-safety rules.** The key is read only from an env var and never touches
+  the card. And remember the honest framing below: a card is a **smoke test, not a
+  courtroom** — `PASS` means "no red flags in this run", not a guarantee.
+
+---
+
 ## Why this exists
 
 Cheap "GPT / Claude / DeepSeek" API relays have a trust problem nobody advertises:
@@ -85,12 +118,20 @@ python3 -m llm_honesty_probe \
 # JSON for CI / cron; pick specific probes; list what's available:
 python3 -m llm_honesty_probe --self-test --json
 python3 -m llm_honesty_probe --list-probes
+
+# A shareable verdict card instead of the full report (see the section above):
+python3 -m llm_honesty_probe --self-test --card                 # PASS + SUSPICIOUS samples
+python3 -m llm_honesty_probe --base-url https://any/v1 --claimed-model gpt-4o \
+  --card --card-format png --card-out verdict.png
 ```
 
-### Example output (from `--self-test`, i.e. a deliberately downgraded mock)
+### Example output (from a deliberately downgraded mock run)
+
+Produced by `--self-test --config <(echo '{"degrade": true}')` — the built-in mock
+made to behave like a downgraded relay, so you can see what a flagged run looks like:
 
 ```
-llm-honesty-probe v0.1.0  —  heuristic signals, NOT proof
+llm-honesty-probe v0.2.0  —  heuristic signals, NOT proof
 Endpoint : http://127.0.0.1:0/v1 (openai)   claimed model: gpt-4o
 Mode     : self-test (mock endpoint)
 Probes   : consistency, identity, needle, reasoning, tokenizer
@@ -233,6 +274,10 @@ and the `Endpoint` header code in [`client.py`](llm_honesty_probe/client.py).
 --reference path/to/tokenizers.json
 --config path/to/config.json      # e.g. {"degrade": true} for --self-test
 --json --out report.json          # machine-readable, good for cron diffs
+--card                            # render a shareable PASS/SUSPICIOUS verdict card
+--card-format png                 # txt (default) | md | svg | html | png | all
+--card-out ./cards                # a file, or a directory when --card-format=all
+--card-show-endpoint              # include the tested host (masked by default)
 ```
 
 To (re)generate the tokenizer reference yourself (recommended — don't trust
