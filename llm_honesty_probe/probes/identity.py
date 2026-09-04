@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import List
 
-from ..client import Endpoint
+from ..client import Endpoint, budget_starved
 from ..signals import Signal, CONSISTENT, SUSPICIOUS, LOW, inconclusive
 from . import register, ProbeContext
 
@@ -39,7 +39,7 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
               "message? Reply with only the model name, nothing else.")
     res = endpoint.chat(model=ctx.claimed_model,
                         messages=[{"role": "user", "content": prompt}],
-                        temperature=0.0, max_tokens=32)
+                        temperature=0.0, max_tokens=256)
     if not res.ok:
         return [inconclusive("identity", "Self-reported identity",
                              "Request failed: %s" % (res.error or "unknown"),

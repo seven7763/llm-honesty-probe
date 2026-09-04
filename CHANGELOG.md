@@ -3,6 +3,29 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-09-04
+
+### Fixed
+- **Reasoning-model false positive.** Endpoints that serve reasoning models can
+  spend the entire `max_tokens` budget on hidden thinking tokens and return empty
+  visible content with `finish_reason: "length"`. The needle, reasoning-floor,
+  strict-JSON and identity probes previously read that empty reply as a capability
+  failure and flagged `SUSPICIOUS` — on an honest endpoint. Such responses are now
+  treated as inconclusive (budget starvation is a property of the caller's
+  `max_tokens`, not of the server's honesty), and the default per-call budgets were
+  raised so short factual replies still fit.
+- **Tokenizer probe vs gateways enforcing `max_tokens > 1`.** The fingerprint
+  calls used `max_tokens=1`, which some OpenAI-compatible gateways reject outright
+  (HTTP 400 `max_tokens must be greater than 2`), silently degrading the probe to
+  inconclusive. The calls now request 4 tokens.
+
+### Added
+- `ChatResult.finish_reason` / `ChatResult.reasoning_tokens` (both protocols), and
+  `client.budget_starved()` — the shared guard probes use to tell "empty because
+  thinking ate the budget" from "empty because the server is evasive".
+- Mock-server `reasoning=True` mode + regression tests: a budget-starved reasoning
+  response must never raise suspicion on the needle or capability-floor probes.
+
 ## [0.2.0] - 2026-07-20
 
 ### Added

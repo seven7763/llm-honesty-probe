@@ -55,7 +55,7 @@ MATCH_TOLERANCE = 3
 def _measure_vector(endpoint: Endpoint, model: str) -> Tuple[Optional[Dict[str, int]], Optional[str]]:
     """Return (delta-vector, error). None vector if usage isn't available."""
     base = endpoint.chat(model=model, messages=[{"role": "user", "content": ANCHOR}],
-                         temperature=0.0, max_tokens=1)
+                         temperature=0.0, max_tokens=4)
     if not base.ok:
         return None, base.error or "anchor request failed"
     if base.prompt_tokens is None:
@@ -65,7 +65,7 @@ def _measure_vector(endpoint: Endpoint, model: str) -> Tuple[Optional[Dict[str, 
     for pid, s in PROBE_STRINGS:
         r = endpoint.chat(model=model,
                           messages=[{"role": "user", "content": ANCHOR + s}],
-                          temperature=0.0, max_tokens=1)
+                          temperature=0.0, max_tokens=4)
         if not r.ok or r.prompt_tokens is None:
             return None, r.error or "missing usage on probe %r" % pid
         vec[pid] = int(r.prompt_tokens) - int(t0)

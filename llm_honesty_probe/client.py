@@ -32,6 +32,8 @@ class ChatResult:
     model_reported: Optional[str] = None       # the "model" field the server echoed
     system_fingerprint: Optional[str] = None   # OpenAI-only, when present
     logprob_tokens: Optional[List[str]] = None # token *strings*, when logprobs given
+    finish_reason: Optional[str] = None        # 'length' + empty text = reasoning budget exhausted
+    reasoning_tokens: Optional[int] = None     # hidden thinking tokens, when reported
     error: Optional[str] = None                # already redacted
     raw_keys: Optional[List[str]] = None       # top-level keys of the response, for debugging
 
@@ -145,6 +147,8 @@ class Endpoint:
             model_reported=body.get("model"),
             system_fingerprint=body.get("system_fingerprint"),
             logprob_tokens=logprob_tokens,
+            finish_reason=choice.get("finish_reason"),
+            reasoning_tokens=(usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
             raw_keys=sorted(body.keys()),
         )
 
@@ -194,6 +198,7 @@ class Endpoint:
             prompt_tokens=usage.get("input_tokens"),
             completion_tokens=usage.get("output_tokens"),
             model_reported=body.get("model"),
+            finish_reason={"max_tokens": "length", "stop_sequence": "stop"}.get(body.get("stop_reason"), body.get("stop_reason")),
             raw_keys=sorted(body.keys()),
         )
 
@@ -220,3 +225,12 @@ def _extract_anthropic_text(body: Dict[str, Any]) -> str:
     if isinstance(parts, str):
         return parts
     return ""
+
+
+def budget_starved(r: "ChatResult") -> bool:
+    """True when the endpoint returned OK but produced no visible content
+    because the output budget was consumed by hidden reasoning tokens
+    (finish_reason == 'length' with empty text). This is a property of the
+    caller's max_tokens vs a reasoning model, NOT an honesty signal — probes
+    must treat it as inconclusive, never suspicious."""
+    return bool(r.ok) and not (r.text or "").strip() and r.finish_reason == "length"

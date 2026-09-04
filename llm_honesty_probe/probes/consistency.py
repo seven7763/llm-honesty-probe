@@ -46,7 +46,7 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
     for _ in range(n):
         r = endpoint.chat(model=ctx.claimed_model,
                           messages=[{"role": "user", "content": _PROMPT}],
-                          temperature=0.0, max_tokens=16)
+                          temperature=0.0, max_tokens=256)
         latencies.append(r.latency_ms)
         if not r.ok:
             errors += 1

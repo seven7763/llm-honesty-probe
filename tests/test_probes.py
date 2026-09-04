@@ -7,7 +7,7 @@ from llm_honesty_probe._mockserver import running_server
 from llm_honesty_probe.client import Endpoint
 from llm_honesty_probe.probes import ProbeContext, get, load_builtin
 from llm_honesty_probe.probes import tokenizer as tok
-from llm_honesty_probe.signals import SUSPICIOUS, CONSISTENT
+from llm_honesty_probe.signals import SUSPICIOUS, CONSISTENT, INCONCLUSIVE
 
 load_builtin()
 
@@ -114,3 +114,25 @@ class KeySafetyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReasoningBudgetFalsePositiveTest(unittest.TestCase):
+    """A reasoning model that spends the whole output budget on hidden thinking
+    returns empty content with finish_reason='length'. That is a property of the
+    caller's max_tokens, NOT dishonesty — probes must degrade to inconclusive and
+    never raise suspicion."""
+
+    def test_needle_not_falsely_suspicious(self):
+        with running_server(reasoning=True) as base_url:
+            signals = _run_all(base_url, needle_lengths=[2000, 8000])
+        needle = _by_probe(signals, "needle")
+        self.assertFalse([s for s in needle if s.verdict == SUSPICIOUS],
+                         "reasoning-budget starvation must not flag the needle probe")
+
+    def test_reasoning_floor_not_falsely_suspicious(self):
+        with running_server(reasoning=True) as base_url:
+            signals = _run_all(base_url)
+        floor = [s for s in _by_probe(signals, "reasoning")
+                 if s.title.startswith("Capability floor")]
+        self.assertFalse([s for s in floor if s.verdict == SUSPICIOUS],
+                         "reasoning-budget starvation must not flag the capability floor")

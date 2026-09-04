@@ -55,6 +55,7 @@ def _approx_tokens(text: str, char_per_token: int = 4) -> int:
 class _Handler(BaseHTTPRequestHandler):
     degrade = False
     char_per_token = 4
+    reasoning = False   # emulate a reasoning model that spends the whole budget on hidden thinking
     counter = [0]
 
     def log_message(self, *args):  # silence
@@ -86,6 +87,20 @@ class _Handler(BaseHTTPRequestHandler):
                 if m.get("role") == "user":
                     user = m.get("content", "")
             ans = _answer(user, self.degrade, self.counter)
+            if self.reasoning:
+                # visible content empty, finish_reason=length, all budget -> reasoning
+                pt = sum(_approx_tokens(m.get("content", ""), self.char_per_token) for m in messages)
+                mt = payload.get("max_tokens", 0) or 0
+                rresp = {
+                    "id": "chatcmpl-mock", "object": "chat.completion", "model": model,
+                    "system_fingerprint": "fp_mock_001",
+                    "choices": [{"index": 0, "finish_reason": "length",
+                                 "message": {"role": "assistant", "content": ""}}],
+                    "usage": {"prompt_tokens": pt, "completion_tokens": mt,
+                              "total_tokens": pt + mt,
+                              "completion_tokens_details": {"reasoning_tokens": mt}},
+                }
+                return self._send(200, rresp)
             prompt_tokens = sum(_approx_tokens(m.get("content", ""), self.char_per_token)
                                 for m in messages)
             resp = {
@@ -108,10 +123,11 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 @contextmanager
-def running_server(degrade: bool = False, char_per_token: int = 4):
+def running_server(degrade: bool = False, char_per_token: int = 4, reasoning: bool = False):
     """Context manager yielding a base_url like 'http://127.0.0.1:PORT/v1'."""
     handler = type("H", (_Handler,), {"degrade": degrade,
-                                      "char_per_token": char_per_token, "counter": [0]})
+                                      "char_per_token": char_per_token,
+                                      "reasoning": reasoning, "counter": [0]})
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from ..client import Endpoint
+from ..client import Endpoint, budget_starved
 from ..signals import Signal, CONSISTENT, SUSPICIOUS, LOW, MEDIUM, inconclusive
 from . import register, ProbeContext
 
@@ -49,8 +49,8 @@ def _ask(endpoint: Endpoint, model: str, approx_chars: int) -> Optional[bool]:
               "Reply with ONLY that passphrase and nothing else.")
     r = endpoint.chat(model=model,
                       messages=[{"role": "user", "content": prompt}],
-                      temperature=0.0, max_tokens=32)
-    if not r.ok:
+                      temperature=0.0, max_tokens=256)
+    if not r.ok or budget_starved(r):
         return None
     return _PASSPHRASE.lower() in (r.text or "").lower()
 

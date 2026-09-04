@@ -16,7 +16,7 @@ import json
 import re
 from typing import List
 
-from ..client import Endpoint
+from ..client import Endpoint, budget_starved
 from ..signals import Signal, CONSISTENT, SUSPICIOUS, LOW, MEDIUM, INCONCLUSIVE, inconclusive
 from . import register, ProbeContext
 
@@ -61,10 +61,10 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
     for tid, prompt, check in _TASKS:
         r = endpoint.chat(model=ctx.claimed_model,
                           messages=[{"role": "user", "content": prompt}],
-                          temperature=0.0, max_tokens=64)
-        if not r.ok:
+                          temperature=0.0, max_tokens=256)
+        if not r.ok or budget_starved(r):
             errored += 1
-            results[tid] = {"ok": None, "error": r.error}
+            results[tid] = {"ok": None, "error": r.error or "reasoning budget exhausted"}
             continue
         passed = bool(check(r.text))
         results[tid] = {"ok": passed, "reply": (r.text or "").strip()[:80]}
@@ -94,8 +94,8 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
           '"a" equal to 6*7 as a number, and "b" equal to the string "ok".')
     r = endpoint.chat(model=ctx.claimed_model,
                       messages=[{"role": "user", "content": jp}],
-                      temperature=0.0, max_tokens=64)
-    if not r.ok:
+                      temperature=0.0, max_tokens=256)
+    if not r.ok or budget_starved(r):
         signals.append(inconclusive("reasoning", "Strict format following",
                                     "Request failed: %s" % (r.error or "unknown")))
     else:
@@ -119,8 +119,8 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
           "overflow is, conceptually.")
     r = endpoint.chat(model=ctx.claimed_model,
                       messages=[{"role": "user", "content": bp}],
-                      temperature=0.0, max_tokens=120)
-    if not r.ok:
+                      temperature=0.0, max_tokens=256)
+    if not r.ok or budget_starved(r):
         signals.append(inconclusive("reasoning", "Refusal behavior",
                                     "Request failed: %s" % (r.error or "unknown")))
     else:
