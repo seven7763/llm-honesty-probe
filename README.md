@@ -187,6 +187,14 @@ trivial for any full-tier model; a downgraded or heavily quantized substitute is
 more likely to trip. We weight *failure* more than success — passing an easy task
 proves little, but a "flagship" that fails a floor task is worth surfacing.
 
+**A note on empty answers (v0.2.1):** reasoning-capable models spend
+completion tokens on thinking before answering. A tiny `--max-tokens` can leave
+nothing for the visible answer — the probe used to flag that shape as a
+capability failure, which was wrong (it is a caller-side budget artifact, not
+dishonesty). The probe now detects budget starvation and reports it as
+inconclusive with guidance to raise the cap, so a small budget cannot fake a
+SUSPICIOUS verdict.
+
 ### 3. Long-context recall (`needle`)
 We generate deterministic filler text, hide a unique passphrase in the middle, and
 ask the endpoint to read it back — across several context lengths. Because **the
