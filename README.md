@@ -330,6 +330,11 @@ Two sibling projects, if you're evaluating an endpoint end to end:
   gateway setup examples for Cursor, Claude Code & Cline (same authors — see
   [Disclosure](#disclosure)). Point this probe at it and compare it against
   whatever you use today.
+- **[The DaoXE guide](https://seven7763.github.io/daoxe-guide/)** — a static,
+  plain-HTML guide (EN/RU/ZH) on evaluating, benchmarking and verifying LLM
+  endpoints end to end: protocol conformance, model-ID pinning, due-diligence
+  questions, and the benchmark methodology behind the sibling project above.
+  This probe is the behavioural layer of that same verification stack.
 
 ## Contributing
 
