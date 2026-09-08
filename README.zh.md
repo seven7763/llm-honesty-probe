@@ -80,6 +80,7 @@ daoxe 鼓励用户这样测它；若它没通过这些检查，那对我们就�
 
 - **[llm-gateway-benchmark](https://github.com/seven7763/llm-gateway-benchmark)** —— 可复现的**速度/可用率**基准（成功率、p50/p95 延迟、每百万 token 价格）。它回答"这个端点快不快、贵不贵"；本工具回答"它到底是不是所声称的模型"。二者互补，而非竞争。
 - **[DaoXE-AI](https://github.com/seven7763/DaoXE-AI)** —— 面向 Cursor / Claude Code / Cline 的 OpenAI/Anthropic 兼容网关接入示例（同一作者，见[利益披露](#利益披露)）。把本探针对准它，与你现在用的服务做对比。
+- **[DaoXE 指南](https://seven7763.github.io/daoxe-guide/zh/)** —— 纯静态 HTML 指南（EN/RU/ZH），端到端讲解如何评估、基准测试与验证 LLM 端点：协议一致性、模型 ID 钉定、尽调问题清单，以及上兄弟项目的基准方法论。本探针是同一验证体系的行为层。
 
 ## 许可
 
