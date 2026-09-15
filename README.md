@@ -252,6 +252,11 @@ defeats its purpose.
   refusal check is low confidence by design.
 - **This tests an endpoint's *behavior over a moment*, not its contract.** Re-run
   over time; a single run is a snapshot.
+- **This tool has been publicly wrong once.** We pointed v0.2.0 at one of the
+  groups on our own gateway and it returned a false `SUSPICIOUS` — the full
+  story, with the raw reports and the fix, is in the
+  [self-test incident log](docs/incident-2026-09-04-self-test.md). Read it to
+  calibrate what a flag — and a PASS — is actually worth.
 
 ---
 
