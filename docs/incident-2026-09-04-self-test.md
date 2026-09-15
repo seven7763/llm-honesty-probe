@@ -163,4 +163,6 @@ including this one.
 
 *References: CHANGELOG `[0.2.1] - 2026-09-04` (this repo), commit `cb15e61`,
 tests in `tests/test_probes.py` (`ReasoningBudgetFalsePositiveTest`), mock
-mode in `llm_honesty_probe/_mockserver.py`.*
+mode in `llm_honesty_probe/_mockserver.py`. Full raw reports and verdict cards
+from all three runs: [`incident-2026-09-04-raw/`](./incident-2026-09-04-raw/)
+(with the redactions listed there).*

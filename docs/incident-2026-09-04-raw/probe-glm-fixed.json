@@ -1,0 +1,171 @@
+{
+  "tool": "llm-honesty-probe",
+  "version": "0.2.0",
+  "disclaimer": "Heuristic signals, not proof. See LIMITATIONS in the README.",
+  "meta": {
+    "base_url": "https://jp.daoxe.com/v1",
+    "protocol": "openai",
+    "claimed_model": "glm-5.3-flash",
+    "mode": "single-endpoint",
+    "probes": [
+      "consistency",
+      "identity",
+      "needle",
+      "reasoning",
+      "tokenizer"
+    ],
+    "model_family": "unknown"
+  },
+  "summary": {
+    "consistent": 6,
+    "suspicious": 0,
+    "inconclusive": 3
+  },
+  "headline": "No strong red flags in this run (still not a guarantee).",
+  "signals": [
+    {
+      "probe": "consistency",
+      "title": "Latency & error rate (informational)",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "p50=2234ms p95=2793ms error_rate=0% over 3 calls.",
+      "evidence": {
+        "n": 3,
+        "errors": 0,
+        "error_rate": 0.0,
+        "p50_ms": 2233.8,
+        "p95_ms": 2793.3
+      }
+    },
+    {
+      "probe": "consistency",
+      "title": "Determinism",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Identical output on all 3 calls at temp=0.",
+      "evidence": {
+        "distinct_outputs": [
+          "down"
+        ],
+        "distinct_count": 1,
+        "successful": 3
+      }
+    },
+    {
+      "probe": "consistency",
+      "title": "Backend identity",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Stable model field / fingerprint across calls.",
+      "evidence": {
+        "model_fields": [
+          "glm-5.3-flash"
+        ],
+        "system_fingerprints": []
+      }
+    },
+    {
+      "probe": "identity",
+      "title": "Self-reported identity",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "Claimed model family unknown; can't compare self-report.",
+      "evidence": {
+        "reply": "",
+        "claimed_model": "glm-5.3-flash",
+        "model_field": "glm-5.3-flash"
+      }
+    },
+    {
+      "probe": "needle",
+      "title": "Long-context recall",
+      "verdict": "consistent",
+      "confidence": "medium",
+      "detail": "Recalled the needle at all tested lengths (up to ~8000 chars).",
+      "evidence": {
+        "outcomes": {
+          "2000": true,
+          "8000": true
+        },
+        "lengths_chars": [
+          2000,
+          8000
+        ]
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Capability floor (reasoning)",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Passed all 4 floor reasoning tasks (weak positive).",
+      "evidence": {
+        "results": {
+          "arithmetic": {
+            "ok": true,
+            "reply": "396"
+          },
+          "reverse": {
+            "ok": true,
+            "reply": "ytsenoh"
+          },
+          "count": {
+            "ok": true,
+            "reply": "6"
+          },
+          "multistep": {
+            "ok": true,
+            "reply": "58"
+          }
+        }
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Strict format following",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Produced exact JSON as requested.",
+      "evidence": {
+        "reply": "{\"a\":42,\"b\":\"ok\"}"
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Refusal behavior",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Answered a benign educational prompt normally.",
+      "evidence": {
+        "reply": "A buffer overflow occurs when a program writes more data into a fixed-size memory buffer than it can hold, causing the e"
+      }
+    },
+    {
+      "probe": "tokenizer",
+      "title": "Tokenizer fingerprint",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "Best structural match is o200k_base (L1=90), but there is no public reference for the claimed family 'unknown', so this isn't a verdict. Use --compare against the official endpoint.",
+      "evidence": {
+        "observed_vector": {
+          "digits": 38,
+          "spaces": 1,
+          "tabs": 5,
+          "word_rep": -6,
+          "cjk": 24,
+          "emoji": 16,
+          "accents": 6,
+          "code": 39,
+          "url": 49,
+          "mixed": 32
+        },
+        "claimed_family": "unknown",
+        "distances": {
+          "o200k_base": 90,
+          "cl100k_base": 161
+        },
+        "best_match": "o200k_base"
+      }
+    }
+  ]
+}

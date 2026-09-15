@@ -1,0 +1,150 @@
+{
+  "tool": "llm-honesty-probe",
+  "version": "0.2.0",
+  "disclaimer": "Heuristic signals, not proof. See LIMITATIONS in the README.",
+  "meta": {
+    "base_url": "https://jp.daoxe.com/v1",
+    "protocol": "openai",
+    "claimed_model": "glm-5.3-flash",
+    "mode": "single-endpoint",
+    "probes": [
+      "consistency",
+      "identity",
+      "needle",
+      "reasoning",
+      "tokenizer"
+    ],
+    "model_family": "unknown"
+  },
+  "summary": {
+    "consistent": 4,
+    "suspicious": 1,
+    "inconclusive": 4
+  },
+  "headline": "Only low-confidence flags; likely noise, but worth a second run.",
+  "signals": [
+    {
+      "probe": "consistency",
+      "title": "Latency & error rate (informational)",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "p50=2327ms p95=2748ms error_rate=0% over 3 calls.",
+      "evidence": {
+        "n": 3,
+        "errors": 0,
+        "error_rate": 0.0,
+        "p50_ms": 2327.3,
+        "p95_ms": 2747.7
+      }
+    },
+    {
+      "probe": "consistency",
+      "title": "Determinism",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Identical output on all 3 calls at temp=0.",
+      "evidence": {
+        "distinct_outputs": [
+          ""
+        ],
+        "distinct_count": 1,
+        "successful": 3
+      }
+    },
+    {
+      "probe": "consistency",
+      "title": "Backend identity",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Stable model field / fingerprint across calls.",
+      "evidence": {
+        "model_fields": [
+          "glm-5.3-flash"
+        ],
+        "system_fingerprints": []
+      }
+    },
+    {
+      "probe": "identity",
+      "title": "Self-reported identity",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "Claimed model family unknown; can't compare self-report.",
+      "evidence": {
+        "reply": "",
+        "claimed_model": "glm-5.3-flash",
+        "model_field": "glm-5.3-flash"
+      }
+    },
+    {
+      "probe": "needle",
+      "title": "Long-context recall",
+      "verdict": "suspicious",
+      "confidence": "low",
+      "detail": "Recall broke at ~8000 chars. Could be silent truncation or the model's real context limit; diff against the official endpoint to disambiguate.",
+      "evidence": {
+        "outcomes": {
+          "8000": false
+        },
+        "lengths_chars": [
+          8000
+        ]
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Capability floor (reasoning)",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "Failed 1/4 floor tasks; could be formatting rather than capability.",
+      "evidence": {
+        "results": {
+          "arithmetic": {
+            "ok": true,
+            "reply": "396"
+          },
+          "reverse": {
+            "ok": false,
+            "reply": "ytenoh"
+          },
+          "count": {
+            "ok": true,
+            "reply": "6"
+          },
+          "multistep": {
+            "ok": true,
+            "reply": "58"
+          }
+        }
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Strict format following",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Produced exact JSON as requested.",
+      "evidence": {
+        "reply": "{\"a\":42,\"b\":\"ok\"}"
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Refusal behavior",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Answered a benign educational prompt normally.",
+      "evidence": {
+        "reply": ""
+      }
+    },
+    {
+      "probe": "tokenizer",
+      "title": "Tokenizer fingerprint",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "Can't fingerprint tokenizer: HTTP 400: {\"error\":{\"message\":\"max_tokens must be greater than 2 (request id: [redacted])\",\"type\":\"invalid_request\",\"param\":\"\",\"code\":null}}.",
+      "evidence": {}
+    }
+  ]
+}

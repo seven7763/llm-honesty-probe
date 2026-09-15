@@ -1,0 +1,151 @@
+{
+  "tool": "llm-honesty-probe",
+  "version": "0.2.0",
+  "disclaimer": "Heuristic signals, not proof. See LIMITATIONS in the README.",
+  "meta": {
+    "base_url": "https://jp.daoxe.com/v1",
+    "protocol": "openai",
+    "claimed_model": "glm-5.3-flash",
+    "mode": "single-endpoint",
+    "probes": [
+      "consistency",
+      "identity",
+      "needle",
+      "reasoning",
+      "tokenizer"
+    ],
+    "model_family": "unknown"
+  },
+  "summary": {
+    "consistent": 2,
+    "suspicious": 3,
+    "inconclusive": 4
+  },
+  "headline": "Some signals warrant a closer look (diff against the official endpoint).",
+  "signals": [
+    {
+      "probe": "consistency",
+      "title": "Latency & error rate (informational)",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "p50=3154ms p95=3838ms error_rate=0% over 3 calls.",
+      "evidence": {
+        "n": 3,
+        "errors": 0,
+        "error_rate": 0.0,
+        "p50_ms": 3154.0,
+        "p95_ms": 3837.8
+      }
+    },
+    {
+      "probe": "consistency",
+      "title": "Determinism",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "2 distinct outputs at temp=0 (mild; temp=0 isn't guaranteed deterministic).",
+      "evidence": {
+        "distinct_outputs": [
+          "",
+          "down"
+        ],
+        "distinct_count": 2,
+        "successful": 3
+      }
+    },
+    {
+      "probe": "consistency",
+      "title": "Backend identity",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Stable model field / fingerprint across calls.",
+      "evidence": {
+        "model_fields": [
+          "glm-5.3-flash"
+        ],
+        "system_fingerprints": []
+      }
+    },
+    {
+      "probe": "identity",
+      "title": "Self-reported identity",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "Claimed model family unknown; can't compare self-report.",
+      "evidence": {
+        "reply": "",
+        "claimed_model": "glm-5.3-flash",
+        "model_field": "glm-5.3-flash"
+      }
+    },
+    {
+      "probe": "needle",
+      "title": "Long-context recall",
+      "verdict": "suspicious",
+      "confidence": "low",
+      "detail": "Recall broke at ~8000 chars. Could be silent truncation or the model's real context limit; diff against the official endpoint to disambiguate.",
+      "evidence": {
+        "outcomes": {
+          "8000": false
+        },
+        "lengths_chars": [
+          8000
+        ]
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Capability floor (reasoning)",
+      "verdict": "suspicious",
+      "confidence": "medium",
+      "detail": "Failed 2/4 easy reasoning tasks a full-tier model rarely misses.",
+      "evidence": {
+        "results": {
+          "arithmetic": {
+            "ok": true,
+            "reply": "396"
+          },
+          "reverse": {
+            "ok": false,
+            "reply": ""
+          },
+          "count": {
+            "ok": false,
+            "reply": ""
+          },
+          "multistep": {
+            "ok": true,
+            "reply": "58"
+          }
+        }
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Strict format following",
+      "verdict": "suspicious",
+      "confidence": "low",
+      "detail": "Did not return valid JSON when strictly instructed to.",
+      "evidence": {
+        "reply": "{\"a\":"
+      }
+    },
+    {
+      "probe": "reasoning",
+      "title": "Refusal behavior",
+      "verdict": "consistent",
+      "confidence": "low",
+      "detail": "Answered a benign educational prompt normally.",
+      "evidence": {
+        "reply": "A buffer overflow occurs when a program writes more data into a fixed-size memory buffer than it can hold, causing the e"
+      }
+    },
+    {
+      "probe": "tokenizer",
+      "title": "Tokenizer fingerprint",
+      "verdict": "inconclusive",
+      "confidence": "low",
+      "detail": "Can't fingerprint tokenizer: HTTP 400: {\"error\":{\"message\":\"max_tokens must be greater than 2 (request id: [redacted])\",\"type\":\"invalid_request\",\"param\":\"\",\"code\":null}}.",
+      "evidence": {}
+    }
+  ]
+}
