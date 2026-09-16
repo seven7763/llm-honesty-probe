@@ -250,6 +250,13 @@ defeats its purpose.
   `--compare` to disambiguate.
 - **Refusal behavior is noisy.** Alignment differs across honest providers, so the
   refusal check is low confidence by design.
+- **Free tiers and gateway groups can blind the probes.** On a free-tier key — or a
+  gateway group with no channel for the model — the needle and format/refusal calls
+  often come back as quota, rate-limit, or model-unavailable errors. Those signals
+  stay *inconclusive* and are tagged `free-tier-limited`, because "the probe couldn't
+  run" is not "the endpoint is dishonest". A PASS on such a run only means: whatever
+  the tier *did* answer, it answered consistently; the free tier may well behave
+  differently from what you pay for, so run the probe against the group you buy.
 - **This tests an endpoint's *behavior over a moment*, not its contract.** Re-run
   over time; a single run is a snapshot.
 - **This tool has been publicly wrong once.** We pointed v0.2.0 at one of the

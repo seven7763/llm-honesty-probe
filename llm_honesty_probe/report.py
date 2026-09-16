@@ -55,6 +55,8 @@ def render_text(signals: List[Signal], meta: Dict[str, Any]) -> str:
         lines.append("[%s] %-11s %-34s (%s)"
                      % (s.mark().strip(), s.probe, s.title, s.confidence))
         lines.append("     " + redact(s.detail))
+        if getattr(s, "tags", None):
+            lines.append("     note: %s" % "; ".join(s.tags))
     lines.append("-" * 66)
 
     c = summarize(signals)

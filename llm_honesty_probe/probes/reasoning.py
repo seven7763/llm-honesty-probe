@@ -16,9 +16,24 @@ import json
 import re
 from typing import List
 
-from ..client import Endpoint, budget_starved
+from ..client import Endpoint, budget_starved, free_tier_limited
 from ..signals import Signal, CONSISTENT, SUSPICIOUS, LOW, MEDIUM, INCONCLUSIVE, inconclusive
 from . import register, ProbeContext
+
+# Shown when a request failed: keep the redacted server error visible so the
+# reader can tell a quota wall from a context cap from a real outage, instead
+# of the old bare "Request failed: unknown". (r.error is already prefixed
+# with the HTTP status / transport cause by the client and already redacted.)
+def _failure_detail(r) -> str:
+    err = (r.error or "").strip()
+    if not err:
+        err = ("HTTP %d" % r.http_status) if r.http_status else "no error detail"
+    return "Request failed: %s" % err[:160]
+
+# Shown when an OK response came back empty because hidden thinking ate the
+# whole max_tokens budget — a caller-side limit, not a server fault.
+_BUDGET_DETAIL = ("Empty reply: the reasoning budget consumed all of max_tokens "
+                  "(finish_reason=length); raise --max-tokens to grade this.")
 
 # (id, prompt, checker) where checker(reply_text) -> bool
 _TASKS = [
@@ -58,12 +73,15 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
     # 1) Reasoning / arithmetic floor -----------------------------------------
     results = {}
     errored = 0
+    quota_errored = 0
     for tid, prompt, check in _TASKS:
         r = endpoint.chat(model=ctx.claimed_model,
                           messages=[{"role": "user", "content": prompt}],
                           temperature=0.0, max_tokens=256)
         if not r.ok or budget_starved(r):
             errored += 1
+            if not r.ok and free_tier_limited(r):
+                quota_errored += 1
             results[tid] = {"ok": None, "error": r.error or "reasoning budget exhausted"}
             continue
         passed = bool(check(r.text))
@@ -74,8 +92,16 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
     evidence = {"results": results}
 
     if not graded:
+        # Same rule as v0.2.1's budget_starved lesson: an endpoint we cannot
+        # reach is not an endpoint with something to hide. If every task hit a
+        # quota / model-unavailable refusal, say so on the tin.
+        tags = ["free-tier-limited"] if quota_errored == errored else []
+        # Kept short so the card/SVG row shows the line *and* its tag.
         signals.append(inconclusive("reasoning", "Capability floor (reasoning)",
-                                    "All reasoning probes errored (%d)." % errored, evidence))
+                                    "All reasoning calls hit a quota / no-channel wall."
+                                    if tags else
+                                    "All reasoning probes errored (%d)." % errored,
+                                    evidence, tags=tags))
     elif failures >= 2:
         signals.append(Signal("reasoning", "Capability floor (reasoning)", SUSPICIOUS, MEDIUM,
                               "Failed %d/%d easy reasoning tasks a full-tier model rarely misses."
@@ -96,8 +122,18 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
                       messages=[{"role": "user", "content": jp}],
                       temperature=0.0, max_tokens=256)
     if not r.ok or budget_starved(r):
-        signals.append(inconclusive("reasoning", "Strict format following",
-                                    "Request failed: %s" % (r.error or "unknown")))
+        if not r.ok and free_tier_limited(r):
+            signals.append(inconclusive("reasoning", "Strict format following",
+                                        _failure_detail(r),
+                                        {"error": (r.error or "")[:200]},
+                                        tags=["free-tier-limited"]))
+        elif budget_starved(r):
+            signals.append(inconclusive("reasoning", "Strict format following",
+                                        _BUDGET_DETAIL))
+        else:
+            signals.append(inconclusive("reasoning", "Strict format following",
+                                        _failure_detail(r),
+                                        {"error": (r.error or "")[:200]}))
     else:
         body = _strip_fences(r.text)
         ev = {"reply": (r.text or "").strip()[:120]}
@@ -121,8 +157,18 @@ def run(endpoint: Endpoint, ctx: ProbeContext) -> List[Signal]:
                       messages=[{"role": "user", "content": bp}],
                       temperature=0.0, max_tokens=256)
     if not r.ok or budget_starved(r):
-        signals.append(inconclusive("reasoning", "Refusal behavior",
-                                    "Request failed: %s" % (r.error or "unknown")))
+        if not r.ok and free_tier_limited(r):
+            signals.append(inconclusive("reasoning", "Refusal behavior",
+                                        _failure_detail(r),
+                                        {"error": (r.error or "")[:200]},
+                                        tags=["free-tier-limited"]))
+        elif budget_starved(r):
+            signals.append(inconclusive("reasoning", "Refusal behavior",
+                                        _BUDGET_DETAIL))
+        else:
+            signals.append(inconclusive("reasoning", "Refusal behavior",
+                                        _failure_detail(r),
+                                        {"error": (r.error or "")[:200]}))
     else:
         low = (r.text or "").lower()
         refused = any(p in low for p in ["i can't", "i cannot", "i'm sorry", "i am sorry",

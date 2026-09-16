@@ -101,6 +101,7 @@ class Row:
     verdict: str          # CONSISTENT / SUSPICIOUS / INCONCLUSIVE
     confidence: str
     detail: str
+    tags: List[str] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
@@ -151,8 +152,15 @@ def _pick(signals: List[Signal], probe: str) -> Optional[Row]:
         detail = first if 0 < len(first) <= 60 else (fallback or raw)
     else:
         detail = raw if (raw and len(raw) <= 72) else (fallback or raw)
+    # Surface diagnostic tags ("free-tier-limited") from the whole group, not
+    # just the lead row — they explain *why* a probe was inconclusive.
+    tags: List[str] = []
+    for s in group:
+        for t in getattr(s, "tags", []) or []:
+            if t not in tags:
+                tags.append(t)
     return Row(key=probe, label=label, verdict=verdict,
-               confidence=lead.confidence, detail=detail)
+               confidence=lead.confidence, detail=detail, tags=tags)
 
 
 def _overall(rows: List[Row], identity: Optional[Row]) -> str:
@@ -241,6 +249,12 @@ def _conf_tag(row: Row) -> str:
     return ""
 
 
+def _diag_tags(row: Row) -> str:
+    """Diagnostic labels like free-tier-limited — appended to any row detail so
+    a card reader sees *why* a probe couldn't grade. Never affects the verdict."""
+    return ("  [%s]" % "; ".join(row.tags)) if row.tags else ""
+
+
 # --- ASCII / text -----------------------------------------------------------
 def _wrap(text: str, width: int) -> List[str]:
     words = text.split()
@@ -292,13 +306,13 @@ def render_text(card: Card, width: int = 74) -> str:
     line()
     for row in card.rows:
         line("  %s %s" % (_ASCII_MARK.get(row.verdict, "[?]"), row.label))
-        for seg in _wrap(row.detail + _conf_tag(row), inner - 8):
+        for seg in _wrap(row.detail + _conf_tag(row) + _diag_tags(row), inner - 8):
             line("        " + seg)
     if card.identity:
         r = card.identity
         line("  %s %s (spoofable, low weight)" % (
             _ASCII_MARK.get(r.verdict, "[?]"), r.label))
-        for seg in _wrap(r.detail + _conf_tag(r), inner - 8):
+        for seg in _wrap(r.detail + _conf_tag(r) + _diag_tags(r), inner - 8):
             line("        " + seg)
     line()
     line("  -> %s:" % CTA_HEADLINE)
@@ -325,12 +339,15 @@ def render_markdown(card: Card) -> str:
     out.append("|---|---|")
     for row in card.rows:
         mark = _GLYPH_MARK.get(row.verdict, "?")
-        out.append("| %s %s | %s%s |" % (mark, row.label,
-                                         row.detail.replace("|", "\\|"), _conf_tag(row)))
+        extra = _diag_tags(row)
+        out.append("| %s %s | %s%s%s |" % (mark, row.label,
+                                           row.detail.replace("|", "\\|"),
+                                           _conf_tag(row), extra))
     if card.identity:
         r = card.identity
-        out.append("| %s %s | %s%s |" % (_GLYPH_MARK.get(r.verdict, "?"), r.label,
-                                         r.detail.replace("|", "\\|"), _conf_tag(r)))
+        out.append("| %s %s | %s%s%s |" % (_GLYPH_MARK.get(r.verdict, "?"), r.label,
+                                           r.detail.replace("|", "\\|"), _conf_tag(r),
+                                           _diag_tags(r)))
     out.append("")
     out.append("> These are **heuristic signals, not proof.** "
                "Test the endpoint *you* pay for \u2014 it's one command, your key never "
@@ -428,8 +445,12 @@ def render_svg(card: Card) -> str:
         rc = _ROW_COLOR.get(row.verdict, _MUTED)
         p.append(_icon(x0 + 18, y - 6, row.verdict, rc))
         p.append(_svg_text(x0 + 48, y, row.label, 24, _TEXT, weight="700"))
-        p.append(_svg_text(x0 + 48, y + 26, _truncate(row.detail + _conf_tag(row), 80),
-                           19, _MUTED))
+        # Truncate the detail, never the diagnostic tag — a cut-off
+        # "[free-tier-l...]" explains nothing.
+        diag = _conf_tag(row) + _diag_tags(row)
+        budget = max(20, 80 - len(diag))
+        p.append(_svg_text(x0 + 48, y + 26,
+                           _truncate(row.detail, budget) + diag, 19, _MUTED))
         y += step
 
     # Identity footnote (muted, one line).

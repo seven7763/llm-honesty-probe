@@ -96,6 +96,8 @@ class Endpoint:
                 detail = exc.read().decode("utf-8", "replace")[:300]
             except Exception:  # noqa: BLE001 - never let error handling raise
                 detail = ""
+            finally:
+                exc.close()
             return {"status": exc.code, "latency_ms": latency, "body": None,
                     "error": redaction.redact("HTTP %s: %s" % (exc.code, detail))}
         except urllib.error.URLError as exc:
@@ -234,3 +236,33 @@ def budget_starved(r: "ChatResult") -> bool:
     caller's max_tokens vs a reasoning model, NOT an honesty signal — probes
     must treat it as inconclusive, never suspicious."""
     return bool(r.ok) and not (r.text or "").strip() and r.finish_reason == "length"
+
+
+# Deliberately narrow: markers we have actually *observed* from quota / rate /
+# channel restrictions on free tiers and gateways (2026-09 observed: OpenAI-style
+# 429 "insufficient_quota" and NewAPI-style 503 model_not_found "无可用渠道").
+# The rule is conservative: miss rather than mislabel. A match only adds an
+# explanation to an already-inconclusive signal; it never changes a verdict.
+_FREE_TIER_MARKERS = (
+    "quota",                  # "You exceeded your current quota" / insufficient_quota
+    "rate limit", "rate_limit", "too many requests",
+    "insufficient",           # insufficient balance / credits
+    "credit balance", "no credit",
+    "free tier", "free-tier", "daily limit",
+    "model_not_found",        # gateway: no routable channel for this group
+    "no available channel", "无可用渠道", "没有可用渠道",
+)
+
+
+def free_tier_limited(r: "ChatResult") -> bool:
+    """True when a *failed* call looks like the endpoint refusing on a quota /
+    rate / channel limit (typical of free-tier keys or group-restricted
+    gateways) rather than anything about the model's honesty. "The probe could
+    not run" is not a red flag — probes tag these inconclusive results
+    ``free-tier-limited`` so a card reader can tell them apart."""
+    if r.ok:
+        return False
+    if r.http_status == 429:
+        return True
+    err = (r.error or "").lower()
+    return any(m in err for m in _FREE_TIER_MARKERS)

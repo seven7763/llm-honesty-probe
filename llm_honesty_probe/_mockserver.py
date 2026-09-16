@@ -56,6 +56,9 @@ class _Handler(BaseHTTPRequestHandler):
     degrade = False
     char_per_token = 4
     reasoning = False   # emulate a reasoning model that spends the whole budget on hidden thinking
+    quota = False       # emulate a free-tier key hitting its quota: HTTP 429 on every call
+    no_channel = False  # emulate a group-restricted gateway: 503 model_not_found / no channel
+    flaky_500 = False   # emulate an unrelated server error (must NOT be tagged free-tier)
     counter = [0]
 
     def log_message(self, *args):  # silence
@@ -81,6 +84,22 @@ class _Handler(BaseHTTPRequestHandler):
         model = payload.get("model", "unknown")
 
         if self.path.endswith("/chat/completions"):
+            if self.quota:
+                # OpenAI-style 429 insufficient_quota (observed shape on free tiers).
+                return self._send(429, {"error": {
+                    "message": "You exceeded your current quota, please check your "
+                               "plan and billing details",
+                    "type": "insufficient_quota", "code": "insufficient_quota"}})
+            if self.no_channel:
+                # NewAPI-style 503: the key's group has no channel for the model
+                # (desensitised from a real 2026-09-16 capture).
+                return self._send(503, {"error": {
+                    "code": "model_not_found",
+                    "message": "分组 X 下模型 %s 无可用渠道（distributor）" % model,
+                    "type": "new_api_error"}})
+            if self.flaky_500:
+                return self._send(500, {"error": {
+                    "message": "internal server error while loading weights"}})
             messages = payload.get("messages", [])
             user = ""
             for m in messages:
@@ -123,11 +142,16 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 @contextmanager
-def running_server(degrade: bool = False, char_per_token: int = 4, reasoning: bool = False):
+def running_server(degrade: bool = False, char_per_token: int = 4, reasoning: bool = False,
+                   quota: bool = False, no_channel: bool = False, flaky_500: bool = False):
     """Context manager yielding a base_url like 'http://127.0.0.1:PORT/v1'."""
     handler = type("H", (_Handler,), {"degrade": degrade,
                                       "char_per_token": char_per_token,
-                                      "reasoning": reasoning, "counter": [0]})
+                                      "reasoning": reasoning,
+                                      "quota": quota,
+                                      "no_channel": no_channel,
+                                      "flaky_500": flaky_500,
+                                      "counter": [0]})
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

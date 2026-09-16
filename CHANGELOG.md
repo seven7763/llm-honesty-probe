@@ -3,6 +3,36 @@
 All notable changes to this project are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-09-16
+
+### Fixed
+- **"Request failed: unknown" on quota refusals.** On a free-tier key (or any
+  gateway group without a routable channel for the model), the strict-format and
+  refusal tasks previously reported a bare `Request failed: unknown` with empty
+  evidence, and the needle probe reported `outcomes: null` with no cause —
+  indistinguishable from a context-limit error. The client's error is now
+  surfaced in the detail and stored in the evidence.
+- **Budget-starved replies mislabelled as request failures.** When a reasoning
+  model returned `200 OK` + empty content + `finish_reason=length`, the format
+  and refusal signals said "Request failed" (it didn't fail — the thinking ate
+  the budget). They now say so explicitly and point at `--max-tokens`, keeping
+  the v0.2.1 rule that starvation is never a red flag.
+
+### Added
+- **Free-tier-limited diagnosis.** A conservative matcher
+  (`client.free_tier_limited()`) recognises quota / rate-limit / model-not-found
+  responses by observed shapes: HTTP 429, `insufficient_quota` / `quota`,
+  `rate limit`, credit/exhaust wording, and NewAPI-style `model_not_found` /
+  `无可用渠道` 503s. When needle or a reasoning request hits such a refusal, the
+  signal stays **inconclusive** (never suspicious — "the probe couldn't run" is
+  not "the endpoint is dishonest") and carries a `free-tier-limited` tag,
+  visible on the verdict card and in the JSON `tags` field.
+- `Signal.tags` (dataclass field + JSON output + all four card renderers).
+- Mock-server modes `quota`, `no_channel`, `flaky_500` and
+  `tests/test_free_tier.py`: the classifier is asserted to match observed
+  bodies and to *not* match unrelated 500s / network errors (miss rather than
+  mislabel).
+
 ## [0.2.1] - 2026-09-04
 
 ### Fixed
